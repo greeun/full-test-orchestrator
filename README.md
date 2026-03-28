@@ -1,5 +1,7 @@
 # Full Test Orchestrator
 
+[한국어](README.ko.md) | **English**
+
 A Claude Code skill that analyzes implementation code and generates comprehensive test suites across 10 domains — with parallel execution for speed.
 
 ## What It Does
@@ -110,6 +112,8 @@ tests/
 
 ## Reports
 
+Two separate reports are generated:
+
 ### Test Preparation Report (after code generation)
 
 Shows what was generated: scenarios, cases, test files, and lines per domain.
@@ -124,14 +128,16 @@ Shows results: pass/fail counts, coverage, duration, failures, and quality crite
 
 The skill activates on these keywords in any Claude Code session:
 
-- `테스트 작성` / `test 생성` / `테스트 만들어`
-- `test suite` / `write tests` / `모든 테스트`
-- `커버리지` / `coverage` / `QA` / `검증`
+**English**: `write tests`, `generate tests`, `create test suite`, `test coverage`, `run all tests`, `coverage report`, `QA`, `test generation`, `full test`, `test code`
+
+**Korean**: `테스트 작성`, `테스트 생성`, `테스트 만들어`, `테스트 코드`, `커버리지`, `검증`, `모든 테스트`, `테스트 실행`, `테스트 시나리오`, `테스트 케이스`, `QA 검증`, `품질 검증`
 
 ### Selective Execution
 
 Request specific domains only:
 
+> "Only generate unit and security tests"
+>
 > "unit이랑 security 테스트만 만들어줘"
 
 The skill will execute only the requested domains.
@@ -153,7 +159,8 @@ cp -r full-test-orchestrator ~/.claude/skills/
 ```
 full-test-orchestrator/
 ├── SKILL.md                    # Main workflow instructions
-├── README.md                   # This file
+├── README.md                   # English documentation
+├── README.ko.md                # Korean documentation
 ├── references/
 │   ├── test-domains.md         # 10 domain detailed guides
 │   ├── quality-criteria.md     # 9 quality standards

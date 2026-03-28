@@ -1,6 +1,6 @@
 ---
 name: full-test-orchestrator
-description: "Full-spectrum test orchestrator that analyzes current implementation code and generates comprehensive test suites across 10 domains (unit, api, integration, e2e, security, accessibility, performance, load/stress, smoke, chaos). Produces test scenarios and cases in tests/doc/, then executable test code. Maximizes parallel execution using Agent tool. Use when implementation is complete, after coding, before PR, or when \"테스트 작성\", \"test 생성\", \"테스트 만들어\", \"test suite\", \"커버리지\", \"coverage\", \"QA\", \"검증\", \"write tests\", \"모든 테스트\", \"全テスト\" is requested."
+description: "Full-spectrum test orchestrator that analyzes current implementation code and generates comprehensive test suites across 10 domains (unit, api, integration, e2e, security, accessibility, performance, load/stress, smoke, chaos). Produces test scenarios and cases in tests/doc/, then executable test code. Maximizes parallel execution using Agent tool. Use when implementation is complete, after coding, before PR, or when these keywords appear: EN: \"write tests\", \"generate tests\", \"create test suite\", \"test coverage\", \"run all tests\", \"coverage report\", \"QA\", \"test generation\", \"full test\", \"test code\" | KO: \"테스트 작성\", \"테스트 생성\", \"테스트 만들어\", \"테스트 코드\", \"커버리지\", \"검증\", \"모든 테스트\", \"테스트 실행\", \"테스트 시나리오\", \"테스트 케이스\", \"QA 검증\", \"품질 검증\""
 ---
 
 # Full Test Orchestrator
