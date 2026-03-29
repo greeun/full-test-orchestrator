@@ -1,29 +1,73 @@
 ---
 name: full-test-orchestrator
-description: "Full-spectrum test orchestrator that analyzes current implementation code and generates comprehensive test suites across 10 domains (unit, api, integration, e2e, security, accessibility, performance, load/stress, smoke, chaos). Produces test scenarios and cases in tests/doc/, then executable test code. Maximizes parallel execution using Agent tool. Use when implementation is complete, after coding, before PR, or when these keywords appear: EN: \"write tests\", \"generate tests\", \"create test suite\", \"test coverage\", \"run all tests\", \"coverage report\", \"QA\", \"test generation\", \"full test\", \"test code\" | KO: \"테스트 작성\", \"테스트 생성\", \"테스트 만들어\", \"테스트 코드\", \"커버리지\", \"검증\", \"모든 테스트\", \"테스트 실행\", \"테스트 시나리오\", \"테스트 케이스\", \"QA 검증\", \"품질 검증\""
+description: "Human-level QA orchestrator that generates spec-based test suites across 10 domains, triages failures (implementation bug vs test error vs environment issue), fixes implementation code when tests correctly catch bugs, and iterates until the system is correct. Use when implementation is complete, after coding, before PR, or when these keywords appear: EN: \"write tests\", \"generate tests\", \"create test suite\", \"test coverage\", \"run all tests\", \"coverage report\", \"QA\", \"test generation\", \"full test\", \"test code\" | KO: \"테스트 작성\", \"테스트 생성\", \"테스트 만들어\", \"테스트 코드\", \"커버리지\", \"검증\", \"모든 테스트\", \"테스트 실행\", \"테스트 시나리오\", \"테스트 케이스\", \"QA 검증\", \"품질 검증\""
 ---
 
-# Full Test Orchestrator
+# Full Test Orchestrator (Human-Level QA)
 
-Generate comprehensive test suites across 10 domains with parallel execution.
+Generate spec-based test suites, triage failures like a human QA engineer, and fix the right code.
+
+## Core Principle: Tests Are the Spec
+
+> A human QA engineer tests against **requirements**, not against current implementation.
+> When a test fails, the first question is: "Is the implementation wrong, or is the test wrong?"
+> The default assumption is: **the implementation is wrong** until proven otherwise.
+
+### Anti-Bias Rules (MANDATORY)
+
+1. **NEVER modify a test to match buggy implementation** — if the test's expected value aligns with the spec/requirement, the test is correct and the implementation must be fixed
+2. **NEVER delete a failing test without root cause analysis** — every failure must be classified before any action
+3. **NEVER add `skip`, `xtest`, `xit`, or `.todo` to bypass a failing test** — fix the root cause
+4. **NEVER weaken assertions** (e.g., changing `toBe(200)` to `toBeTruthy()`) to make tests pass
+5. **Test modification requires justification** — document WHY with one of: spec changed, test had wrong assumption, test was non-deterministic
 
 ## Workflow
 
 ```
-Phase A: Code Analysis (sequential)
+Phase A: Spec & Code Analysis (sequential)
     ↓
 Phase B: Test Document Generation (parallel)
     ↓
 Phase C: Test Code Generation (parallel)
     ↓
-Phase D: Verification (parallel → aggregate)
+Phase D: Execution (parallel → aggregate)
     ↓
-Phase E: Reports (Preparation + Execution)
+Phase E: Failure Triage (sequential, per failure)
+    ↓
+Phase F: Remediation (fix implementation or test, with justification)
+    ↓
+Phase G: Re-verification (run all tests again)
+    ↓
+  ┌─ Failures remain → repeat from Phase E (max 5 iterations)
+  └─ All pass → Phase H: Reports
+    ↓
+Phase H: Final Reports (Preparation + Execution + Triage Summary)
 ```
 
-## Phase A: Code Analysis
+## Phase A: Spec & Code Analysis
 
-Analyze the current implementation to understand:
+### A-1: Spec Extraction (NEW — Human QA Foundation)
+
+Before writing any test, extract the **expected behavior** from these sources (in priority order):
+
+1. **Explicit specs** — README, API docs, OpenAPI/Swagger, JSDoc, design docs in `docs/`
+2. **Type contracts** — TypeScript interfaces, Zod schemas, Prisma models define the data contract
+3. **Route definitions** — URL patterns, HTTP methods, middleware chains define the API contract
+4. **Existing tests** — passing tests that cover the same area are validated specs
+5. **Code intent** — function names, variable names, comments reveal developer intent
+6. **Framework conventions** — Next.js App Router conventions, middleware patterns, etc.
+
+Output: **Spec Summary** per module/endpoint:
+```
+[Module/Endpoint]: [path or function name]
+  Expected Input:  [types, constraints, required fields]
+  Expected Output: [return type, status codes, response shape]
+  Side Effects:    [DB writes, external calls, cache updates]
+  Error Cases:     [what should happen on invalid input, auth failure, etc.]
+  Source:          [where this spec came from — doc, type, schema, etc.]
+```
+
+### A-2: Code Analysis (existing)
 
 1. **Project stack** — language, framework, existing test setup
 2. **Test framework detection** — find existing test config (jest.config, vitest.config, pytest.ini, playwright.config, etc.)
@@ -34,7 +78,7 @@ Analyze the current implementation to understand:
 
 If no test framework exists, recommend one appropriate for the project and confirm with the user before proceeding.
 
-### Dedup Check (MANDATORY)
+### A-3: Dedup Check (MANDATORY)
 
 Before generating any test, perform these checks:
 
@@ -53,11 +97,13 @@ Before generating any test, perform these checks:
    - Temp verify files: `verify-*.spec.ts`
    - Testing unimplemented features with `console.log("not implemented")` skip
 
-Output: Share analysis summary (including dedup findings) with all agents in Phase B/C.
+Output: Share analysis summary (Spec + Code + Dedup) with all agents in Phase B/C.
 
 ## Phase B: Test Document Generation (Parallel)
 
 Generate test scenarios and test cases in `tests/doc/`.
+
+**IMPORTANT**: Test expected values come from Phase A-1 Spec Summary, NOT from reading the current implementation's return values.
 
 Launch 3 agents in parallel:
 
@@ -93,10 +139,11 @@ Rules:
 - Each test must be independently runnable
 - Include setup/teardown where needed
 - Write assertion messages that clarify expected vs actual
+- **Expected values come from spec, not from running the implementation first**
 
 Output: **Test Preparation Report** — see [references/report-format.md](references/report-format.md)
 
-## Phase D: Verification
+## Phase D: Execution
 
 Run all generated tests in parallel where possible:
 
@@ -108,14 +155,209 @@ Run all generated tests in parallel where possible:
 
 Aggregate results after all agents complete.
 
-Output: **Test Execution Report** — see [references/report-format.md](references/report-format.md)
+Output: Raw execution results (pass/fail per test with error output).
 
-## Phase E: Reports
+## Phase E: Failure Triage (Human QA Core)
 
-Display two reports sequentially:
+**This is the critical phase that distinguishes human-level QA from naive test generation.**
 
-1. **Test Preparation Report** (after Phase C) — what was generated
-2. **Test Execution Report** (after Phase D) — what passed/failed + quality criteria
+For EVERY failing test, perform root cause analysis in this exact order:
+
+### E-1: Classify Each Failure
+
+```
+For each failing test:
+  1. Read the test code — what does it expect?
+  2. Read the implementation code — what does it actually do?
+  3. Read the spec (from Phase A-1) — what SHOULD it do?
+  4. Classify:
+```
+
+| Classification | Criteria | Action |
+|---|---|---|
+| **IMPL_BUG** | Test expectation matches spec, but implementation deviates | Fix implementation in Phase F |
+| **TEST_ERROR** | Test expectation does NOT match spec (wrong expected value, wrong setup, flawed assertion logic) | Fix test in Phase F with documented justification |
+| **SPEC_AMBIGUOUS** | Spec is unclear or contradictory — cannot determine correct behavior | Ask user to clarify before proceeding |
+| **ENV_ISSUE** | Test itself is correct but fails due to: missing env var, DB not running, port conflict, dependency not installed | Report environment fix needed, do not modify code |
+| **FLAKY** | Test passes sometimes, fails sometimes (timing, race condition, external dependency) | Fix test to be deterministic (use mocks, fixed seeds, retries with backoff) |
+| **NOT_IMPLEMENTED** | Feature described in spec but code doesn't exist yet | Report as missing implementation, do not create stub tests |
+
+### E-2: Triage Decision Tree
+
+```
+Test fails
+  │
+  ├─ Does the expected value match the spec?
+  │   ├─ YES → Implementation is wrong (IMPL_BUG)
+  │   │         → Go to Phase F: fix implementation
+  │   │
+  │   └─ NO → Is the spec clear?
+  │       ├─ YES → Test is wrong (TEST_ERROR)
+  │       │         → Go to Phase F: fix test with justification
+  │       │
+  │       └─ NO → (SPEC_AMBIGUOUS)
+  │                → Ask user for clarification
+  │
+  ├─ Is it an environment/infra error? (connection refused, ENOENT, timeout on setup)
+  │   └─ YES → (ENV_ISSUE)
+  │             → Report, skip this test for now
+  │
+  ├─ Does it pass on retry but fail intermittently?
+  │   └─ YES → (FLAKY)
+  │             → Fix determinism issue
+  │
+  └─ Does the function/endpoint not exist at all?
+      └─ YES → (NOT_IMPLEMENTED)
+                → Report as missing feature
+```
+
+### E-3: Triage Output
+
+For each failure, document:
+
+```
+─── Failure Triage ───────────────────────────────
+Test:           [test file:line — test name]
+Classification: [IMPL_BUG | TEST_ERROR | SPEC_AMBIGUOUS | ENV_ISSUE | FLAKY | NOT_IMPLEMENTED]
+Expected:       [what the test expects]
+Actual:         [what the implementation returned]
+Spec Says:      [what the spec defines as correct]
+Root Cause:     [1-2 sentence explanation]
+Action:         [specific fix to apply]
+──────────────────────────────────────────────────
+```
+
+## Phase F: Remediation
+
+Apply fixes based on Phase E classification. **Each fix type has different rules.**
+
+### F-1: IMPL_BUG — Fix Implementation Code
+
+- Read the failing test to understand the expected behavior
+- Read the spec to confirm the expected behavior
+- Modify the **implementation source code** (NOT the test)
+- Keep the fix minimal — only change what's needed to satisfy the spec
+- Do NOT refactor surrounding code
+- If the fix is non-trivial (> 20 lines changed), ask user to confirm approach before applying
+
+### F-2: TEST_ERROR — Fix Test Code (with justification)
+
+- **MUST document justification** in a comment above the fixed test:
+  ```
+  // Fixed: [reason] — spec says [X], test incorrectly expected [Y]
+  ```
+- Common valid reasons:
+  - Wrong HTTP status code expected (spec says 201, test had 200)
+  - Incorrect mock setup (mocked return value doesn't match actual schema)
+  - Wrong field name in assertion (typo or outdated field)
+  - Test was asserting implementation detail, not behavior
+- **INVALID reasons** (do NOT use these to justify test changes):
+  - "Implementation returns X instead of Y" (that's an IMPL_BUG)
+  - "Easier to change the test" (laziness is not justification)
+  - "The test is too strict" (strictness catches bugs — keep it)
+
+### F-3: SPEC_AMBIGUOUS — Escalate to User
+
+- Present the ambiguity clearly:
+  ```
+  Spec says: [quote or paraphrase]
+  Test expects: [value]
+  Implementation does: [value]
+  Question: Which is the intended behavior?
+  ```
+- Wait for user response before proceeding
+- After user clarifies, classify as IMPL_BUG or TEST_ERROR and fix accordingly
+
+### F-4: ENV_ISSUE — Report and Skip
+
+- List required environment setup
+- Do NOT modify code
+- Move to next failure
+
+### F-5: FLAKY — Fix Determinism
+
+- Replace time-dependent logic with mocked clocks
+- Replace random values with fixed seeds
+- Replace real network calls with mocks (in unit/api tests)
+- Add proper `waitFor` / polling in E2E tests instead of fixed `sleep`
+
+### F-6: NOT_IMPLEMENTED — Report as Gap
+
+- Add to a "Missing Implementation" section in the report
+- Do NOT create placeholder implementations
+- Do NOT create tests that expect undefined behavior
+
+## Phase G: Re-verification
+
+After Phase F fixes are applied:
+
+1. **Run ALL tests** (not just the fixed ones) — fixes may cause regressions
+2. **Compare results** against Phase D execution
+3. **If new failures appear**: return to Phase E for triage (these are likely regressions from Phase F fixes)
+4. **Iteration limit**: Maximum 5 triage-fix-verify cycles
+
+### Re-verification Loop
+
+```
+Iteration 1: Phase D → E → F → G (run all)
+  ├─ All pass → proceed to Phase H
+  └─ New failures → Iteration 2
+      Iteration 2: Phase E → F → G (run all)
+        ├─ All pass → proceed to Phase H
+        └─ New failures → Iteration 3 (max 5)
+```
+
+### Regression Guard
+
+If a previously passing test now fails after a Phase F fix:
+- The Phase F fix likely introduced a regression
+- **Revert the fix** and find a non-breaking approach
+- NEVER fix the regression by weakening the now-failing test
+
+## Phase H: Final Reports
+
+Display three reports sequentially:
+
+1. **Test Preparation Report** (from Phase C) — what was generated
+2. **Test Execution Report** (from Phase G final run) — what passed/failed
+3. **Triage Summary Report** (NEW) — what was fixed and how
+
+### Triage Summary Report Format
+
+```
+═══════════════════════════════════════════════════
+ Triage Summary Report
+═══════════════════════════════════════════════════
+ Iterations: N / 5 max
+ Total Failures Triaged: N
+
+ ─── By Classification ───────────────────────────
+ IMPL_BUG:        N fixed  (implementation code changed)
+ TEST_ERROR:      N fixed  (test code changed, justified)
+ SPEC_AMBIGUOUS:  N resolved (user clarified)
+ ENV_ISSUE:       N reported (environment setup needed)
+ FLAKY:           N fixed  (determinism improved)
+ NOT_IMPLEMENTED: N reported (features missing)
+
+ ─── Implementation Fixes ────────────────────────
+ File                        Change Summary
+ src/lib/services/foo.ts     Fixed return type for edge case
+ src/app/api/bar/route.ts    Added missing 404 handling
+ ...
+
+ ─── Test Fixes (with justification) ─────────────
+ File                        Justification
+ tests/unit/foo.test.ts      Spec says 201, test had 200
+ tests/api/bar.test.ts       Mock setup used wrong schema
+ ...
+
+ ─── Unresolved ──────────────────────────────────
+ [List any failures that remain after max iterations]
+
+ ─── Regression Events ───────────────────────────
+ [List any fixes that were reverted due to regression]
+═══════════════════════════════════════════════════
+```
 
 ## Layer Ownership Rules (Dedup)
 
@@ -149,7 +391,7 @@ All 9 criteria apply. See [references/quality-criteria.md](references/quality-cr
 
 | Criteria | Target |
 |----------|--------|
-| Coverage | ≥ 98% line, ≥ 90% branch |
+| Coverage | >= 98% line, >= 90% branch |
 | Independence | No cross-test dependencies |
 | Determinism | 0 flaky tests |
 | Boundary values | null, empty, max, negative covered |
@@ -184,10 +426,14 @@ Step 3: Generate test code for gaps only
     ↓
 Step 4: Run all tests (existing + new)
     ↓
-Step 5: Re-investigate gaps
+Step 5: Triage any failures (Phase E rules apply!)
+    ↓
+Step 6: Remediate (Phase F rules apply!)
+    ↓
+Step 7: Re-verify and re-investigate gaps
     ↓
   ┌─ Gaps found → repeat from Step 2
-  └─ No gaps → complete with reports
+  └─ No gaps + all pass → complete with reports
 ```
 
 ### Step 1: Gap Investigation
@@ -221,7 +467,15 @@ Generate test code ONLY for identified gaps:
 
 Execute both existing and newly generated tests. Collect results.
 
-### Step 5: Re-investigate and Repeat
+### Step 5-6: Triage and Remediate
+
+**Apply Phase E (Triage) and Phase F (Remediation) rules to ALL failures.**
+
+This is the critical difference from the old workflow:
+- Old: failures → adjust tests → re-run
+- New: failures → classify → fix the RIGHT code → re-run
+
+### Step 7: Re-investigate and Repeat
 
 After execution, re-analyze for remaining gaps:
 - New tests may reveal additional untested paths
@@ -247,6 +501,10 @@ After each iteration, display:
  ...
 ───────────────────────────────────────────────────
  Coverage: --% → --%  (delta: +--%)
+
+ Triage This Iteration:
+   IMPL_BUG: N fixed | TEST_ERROR: N fixed | ENV_ISSUE: N
+
  Status: [Continue / Complete]
 ═══════════════════════════════════════════════════
 ```
