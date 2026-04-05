@@ -1,6 +1,25 @@
-# Quality Criteria (9 Standards)
+# Quality Criteria (10 Standards)
 
 All generated tests must meet these criteria.
+
+## 0. Meaningful Tests (Gate — checked before all other criteria)
+
+Every test must pass the **3-Question Gate** before it is written:
+
+1. **What production bug does this prevent?** — If you can't name a concrete failure scenario, don't write it.
+2. **Which layer owns this verification?** — If another layer already covers it, don't duplicate.
+3. **What action does a failure trigger?** — If the response to failure is unclear, the test design is wrong.
+
+Tests that fail this gate are worse than no tests — they add maintenance cost, slow CI, and create false confidence. Remove them.
+
+**Prohibited patterns** (auto-reject during review):
+- Constant verification: `expect(PATH).toBe('/api/...')`
+- Existence check: `expect(typeof fn).toBe('function')`
+- Implementation copy: duplicating source logic in assertions
+- Placeholder: `expect(true).toBeTruthy()`
+- Pure delegation: only checking that A calls B
+- Static data: testing arrays/maps with no conditional logic
+- Repetitive middleware: same pattern × N endpoints (test middleware once + 2 representatives)
 
 ## 1. Coverage (≥ 98% line, ≥ 90% branch)
 
