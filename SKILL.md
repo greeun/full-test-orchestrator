@@ -13,6 +13,26 @@ Generate spec-based test suites, triage failures like a human QA engineer, and f
 > When a test fails, the first question is: "Is the implementation wrong, or is the test wrong?"
 > The default assumption is: **the implementation is wrong** until proven otherwise.
 
+### Meaningful Test Rules (MANDATORY)
+
+Every test must have a clear **purpose** (why it exists) and **goal** (what it proves). Before writing any test, answer these three questions:
+
+1. **이 테스트가 없으면 어떤 버그가 프로덕션에 나갈 수 있는가?** — 답할 수 없으면 작성하지 않는다.
+2. **이 검증 항목의 Layer Owner는 어디인가?** — 다른 계층에서 이미 검증하면 작성하지 않는다.
+3. **이 테스트가 실패하면 어떤 행동을 취하는가?** — 행동이 불분명하면 테스트 설계가 잘못된 것이다.
+
+**Prohibited test patterns** (produce no value — NEVER write these):
+
+| Pattern | Example | Why it's meaningless |
+|---------|---------|---------------------|
+| Constant verification | `expect(API_PATH).toBe('/api/links')` | String constants don't have bugs; changes require updating both code and test |
+| Existence check | `expect(typeof fn).toBe('function')` | TypeScript already guarantees this at compile time |
+| Implementation copy | Duplicating implementation logic in test to compare | Tautology — tests the code against itself, not against spec |
+| Placeholder | `expect(true).toBeTruthy()` | Padding that inflates count without catching anything |
+| Pure delegation | Verifying A calls B (when B has its own tests) | Duplication; violates Layer Ownership |
+| Static data structure | Testing menu arrays, route maps with no logic | Changes require updating test too; no bug prevention |
+| Repetitive pattern | Same Rate Limit test × 14 endpoints | Test the middleware once + 2 representative endpoints |
+
 ### Anti-Bias Rules (MANDATORY)
 
 1. **NEVER modify a test to match buggy implementation** — if the test's expected value aligns with the spec/requirement, the test is correct and the implementation must be fixed
@@ -90,10 +110,15 @@ Before generating any test, perform these checks:
    - Browser UI flow → e2e only (NOT api tests using request.get/post in e2e folder)
    - OWASP attacks → security only (NOT in api tests)
 3. **Existing file check**: If a file already tests the same endpoint/service, add TC to that file instead of creating new file
-4. **Prohibited patterns**:
+4. **Prohibited patterns** (see also Meaningful Test Rules above):
    - `expect(true).toBeTruthy()` placeholder tests
    - Padding assertions: `expect(typeof x).toBe('string')` after already checking value
    - Re-export existence checks: `expect(typeof fn).toBe('function')`
+   - Constant verification: `expect(CONST).toBe('value')` for static strings
+   - Implementation copy: duplicating source logic in test assertions
+   - Static data structure tests: testing arrays/maps/configs with no conditional logic
+   - Repetitive middleware tests: same pattern × N endpoints (middleware unit test + 2 representatives)
+   - Pure delegation tests: only verifying A calls B when B has its own tests
    - Temp verify files: `verify-*.spec.ts`
    - Testing unimplemented features with `console.log("not implemented")` skip
 
