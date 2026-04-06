@@ -21,6 +21,26 @@ Tests that fail this gate are worse than no tests — they add maintenance cost,
 - Static data: testing arrays/maps with no conditional logic
 - Repetitive middleware: same pattern × N endpoints (test middleware once + 2 representatives)
 
+## 0.5. False Positive Audit (허위 양성 탐지 — Gate 2)
+
+통과하는 테스트 중 **실제로 아무것도 검증하지 않는 테스트**를 탐지합니다. 이는 테스트가 없는 것보다 위험합니다.
+
+**탐지 대상 패턴:**
+
+| 패턴 | grep 명령 | 위험도 |
+|------|----------|--------|
+| `expect(x !== undefined).toBe(true)` | `grep -r "!== undefined" tests/` | CRITICAL — null도 통과 |
+| `expect([200, 201, 403, 429]).toContain(s)` | `grep -rn "expect(\[" tests/` | CRITICAL — 핵심 동작 미검증 |
+| `.catch(() => null)` + null 허용 | `grep -rn "\.catch.*=> null" tests/` | HIGH — 에러 삼킴 |
+| `console.log("[SKIP]")` | `grep -r "\[SKIP\]" tests/` | HIGH — false positive |
+| `expect(true).toBe(true)` | `grep -r "expect(true)" tests/` | CRITICAL — 무조건 통과 |
+| 빈 테스트 본문 | `// TODO`, `// [REQUIRED]` | HIGH — 검증 없음 |
+
+**발견 시 조치:**
+- CRITICAL → 즉시 수정 (정확한 값 검증으로 대체)
+- HIGH → `test.fail(true, "설명")` 또는 `test.info().annotations.push({ type: "fixme" })` 전환
+- 수량 보고: "허위 양성 N건 탐지, M건 수정"
+
 ## 1. Coverage (≥ 98% line, ≥ 90% branch)
 
 - Every public function/method has at least one test
