@@ -2,17 +2,20 @@
 
 [한국어](README.ko.md) | **English**
 
-A Claude Code skill that analyzes implementation code and generates comprehensive test suites across 10 domains — with parallel execution for speed.
+A Claude Code skill that acts as a **20-year veteran QA engineer** — analyzes code, detects false positives in existing tests, generates comprehensive test suites across 10 domains, triages failures, fixes the right code, and verifies production readiness.
 
 ## What It Does
 
 Given your current codebase, this skill:
 
 1. **Analyzes** your code, stack, and existing tests
-2. **Generates test documents** (scenarios + test cases) in `tests/doc/`
-3. **Generates executable test code** using your project's framework
-4. **Runs all tests** and collects results
-5. **Reports** preparation summary and execution results
+2. **Audits existing tests for false positives** — catches tests that pass but verify nothing
+3. **Generates test documents** (scenarios + test cases) in `tests/doc/`
+4. **Generates executable test code** using your project's framework
+5. **Runs all tests** and triages failures (implementation bug vs test error vs environment issue)
+6. **Fixes the right code** — implementation bugs get implementation fixes, not test weakening
+7. **Verifies production readiness** — resilience, security substance, user journey completeness
+8. **Reports** preparation, execution, triage summary, and false positive audit
 
 All with **3-agent parallel execution** to minimize wait time.
 
@@ -34,15 +37,23 @@ All with **3-agent parallel execution** to minimize wait time.
 ## Workflow
 
 ```
-Phase A: Code Analysis          (sequential — shared context)
+Phase A:  Code & Spec Analysis        (sequential — shared context)
     ↓
-Phase B: Test Document Gen      (3 agents in parallel)
+Phase A+: False Positive Audit        (detect tests that pass but verify nothing)
     ↓
-Phase C: Test Code Gen          (3 agents in parallel)
-    ↓  → Test Preparation Report
-Phase D: Verification           (3 agents in parallel)
-    ↓  → Test Execution Report
-Phase E: Reports Display
+Phase B:  Test Document Gen           (3 agents in parallel)
+    ↓
+Phase C:  Test Code Gen               (3 agents in parallel)
+    ↓
+Phase D:  Execution                   (3 agents in parallel)
+    ↓
+Phase E:  Failure Triage              (IMPL_BUG / TEST_ERROR / ENV_ISSUE / FLAKY)
+    ↓
+Phase F:  Remediation                 (fix implementation or test, with justification)
+    ↓
+Phase G:  Re-verification             (run all tests, max 5 iterations)
+    ↓
+Phase H:  Reports + Production Readiness Audit
 ```
 
 ### Parallel Agent Groups
@@ -53,12 +64,57 @@ Phase E: Reports Display
 | Agent 2 | Integration + E2E |
 | Agent 3 | Security + Accessibility + Performance + Load/Stress + Chaos |
 
+## Key Features (v1.1)
+
+### False Positive Detection
+
+Detects tests that pass but verify nothing — **worse than no tests** because they create false confidence.
+
+| Pattern | Example | Risk |
+|---------|---------|------|
+| Null passthrough | `expect(result !== undefined).toBe(true)` | null also passes |
+| Loose status check | `expect([200, 201, 403, 429]).toContain(s)` | rate limit disabled still passes |
+| Error swallowing | `.catch(() => null)` then allow null | skips verification on error |
+| Graceful skip | `isVisible().catch(() => false)` → `console.log("[SKIP]")` | UI regression undetected |
+| Empty test body | `test("TC-001", async () => { /* TODO */ })` | illusion of coverage |
+
+### Human-Level Failure Triage
+
+Every failing test is classified before any fix:
+
+| Classification | Action |
+|---|---|
+| **IMPL_BUG** | Fix implementation code (NOT the test) |
+| **TEST_ERROR** | Fix test with documented justification |
+| **ENV_ISSUE** | Report environment setup needed |
+| **FLAKY** | Fix determinism (mocked clocks, fixed seeds) |
+| **SPEC_AMBIGUOUS** | Ask user to clarify |
+
+### Production Readiness Audit
+
+Goes beyond test counts — verifies your service can actually survive production:
+
+- **Resilience**: Cache failure fallback, external service circuit breaker, memory leak prevention
+- **Security substance**: Rate limit thresholds enforced, JWT actually verified, OAuth callbacks tested
+- **User journey completeness**: Full lifecycle E2E, mobile-specific, i18n content verification
+- **Consistency**: Cache-DB coherence, external service-DB orphan records, error response format
+
+### Operational Readiness
+
+Checks and generates operational infrastructure:
+
+- Health check API with application metrics
+- Circuit Breaker for external services
+- Rollback playbook + DB migration rollback SQL
+- Graceful Degradation policy + chaos tests
+
 ## Quality Criteria
 
-All generated tests are measured against 9 standards:
+All generated tests are measured against 10 standards:
 
 | Criteria | Target |
 |----------|--------|
+| **False Positive Audit** | **0 false positives in existing tests** |
 | Coverage | ≥ 98% line, ≥ 90% branch |
 | Independence | No cross-test dependencies |
 | Determinism | 0 flaky tests |
@@ -112,15 +168,19 @@ tests/
 
 ## Reports
 
-Two separate reports are generated:
+Four reports are generated:
 
-### Test Preparation Report (after code generation)
+### 1. False Positive Audit Report (after Phase A+)
+Shows existing tests with false positives: file, line, pattern, risk level, recommended fix.
 
+### 2. Test Preparation Report (after code generation)
 Shows what was generated: scenarios, cases, test files, and lines per domain.
 
-### Test Execution Report (after running tests)
-
+### 3. Test Execution Report (after running tests)
 Shows results: pass/fail counts, coverage, duration, failures, and quality criteria status per domain.
+
+### 4. Triage Summary Report (after remediation)
+Shows what was fixed: IMPL_BUG count, TEST_ERROR count (with justification), unresolved items, regression events.
 
 ## Usage
 
