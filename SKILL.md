@@ -73,6 +73,8 @@ Phase A: Spec & Code Analysis (sequential)
     ↓
 Phase A+: False Positive Audit (기존 테스트 허위 양성 탐지)
     ↓
+Phase A-5: Domain Coverage Gate (10개 도메인 판정 → 사용자 확인)
+    ↓
 Phase B: Test Document Generation (parallel)
     ↓
 Phase C: Test Code Generation (parallel)
@@ -267,6 +269,86 @@ grep -rn "// \[.*REQUIRED\]\|// TODO\|// PLACEHOLDER" tests/
 - `test("TC-001", async () => { /* [REQUIRED] */ })` → **빈 테스트** (검증 없음)
 
 **결과물:** `tests/doc/FALSE_POSITIVE_AUDIT.md` — 파일별 허위 양성 목록 + 위험도 + 권장 수정
+
+### A-5: Domain Coverage Gate (MANDATORY — 도메인 커버리지 게이트)
+
+> **이 게이트를 통과하지 않으면 Phase B로 진행할 수 없다.**
+
+Phase A 분석이 끝나면, **10개 도메인 전체**에 대해 아래 표를 **빠짐없이** 작성하여 사용자에게 제시한다.
+"풀테스트" 요청 시 이 게이트는 건너뛸 수 없다.
+
+#### 출력 형식 (10행 모두 필수)
+
+```
+═══════════════════════════════════════════════════
+ Domain Coverage Gate — Phase A-5
+═══════════════════════════════════════════════════
+ #   Domain          Verdict          Reason / Scope
+─────────────────────────────────────────────────── 
+ 1   Unit            PROCEED(N)       N개 함수/모듈 대상
+ 2   API             PROCEED(N)       N개 엔드포인트 대상
+ 3   Integration     PROCEED(N)       N개 서비스 연동 대상
+ 4   E2E             PROCEED(N)       N개 사용자 여정 대상
+ 5   Security        PROCEED(N)       N개 OWASP 항목 대상
+ 6   Accessibility   NOT_APPLICABLE   사유: [구체적 이유]
+ 7   Performance     PROCEED(N)       N개 함수/페이지 대상
+ 8   Load/Stress     DEFERRED         사유: [구체적 이유]
+ 9   Smoke           PROCEED(N)       N개 크리티컬 경로 대상
+ 10  Chaos           DEFERRED         사유: [구체적 이유]
+═══════════════════════════════════════════════════
+ PROCEED: N개 도메인 / DEFERRED: N개 / NOT_APPLICABLE: N개
+═══════════════════════════════════════════════════
+```
+
+#### Verdict 규칙
+
+| Verdict | 의미 | 조건 |
+|---------|------|------|
+| **PROCEED(N)** | 이 도메인에서 N개 TC를 생성한다 | 테스트 가능한 대상이 1개 이상 존재 |
+| **NOT_APPLICABLE** | 이 프로젝트에 해당 도메인이 적용되지 않는다 | 아래 허용 사유 목록에 해당하는 경우만 |
+| **DEFERRED** | 적용 가능하지만 현재 환경에서 실행 불가 | 인프라/의존성 부재 (DB, Redis, 브라우저 등) |
+
+#### NOT_APPLICABLE 허용 사유 (이 목록에 없는 사유는 인정하지 않음)
+
+| 도메인 | 유일하게 허용되는 NOT_APPLICABLE 사유 |
+|--------|-------------------------------------|
+| Unit | 프로젝트에 순수 함수/모듈이 단 하나도 없음 (극히 드묾) |
+| API | 프로젝트에 API 엔드포인트가 없음 (프론트엔드 전용 등) |
+| Integration | 서비스 간 연동이 없는 단일 모듈 프로젝트 |
+| E2E | UI가 없는 순수 백엔드/라이브러리 프로젝트 |
+| Security | API/입력 처리가 없는 순수 유틸리티 라이브러리 |
+| Accessibility | 브라우저 UI가 없는 프로젝트 |
+| Performance | 성능이 관심사가 아닌 내부 도구 (사용자 지정 시만) |
+| Load/Stress | 동시성/부하가 관심사가 아닌 프로젝트 (사용자 지정 시만) |
+| Smoke | 배포 파이프라인이 없는 로컬 전용 프로젝트 |
+| Chaos | 외부 서비스 의존이 없는 프로젝트 |
+
+#### DEFERRED 처리
+
+DEFERRED 도메인은 **Phase H 보고서에 "미실행 도메인" 섹션으로 기록**하고, 실행에 필요한 환경 설정을 안내한다.
+
+#### 금지 규칙 (Anti-Domain-Skip)
+
+다음 근거로 도메인을 NOT_APPLICABLE 처리하면 **자동 기각**:
+
+| 금지 사유 | 왜 금지인가 |
+|----------|-----------|
+| ❌ "이 도메인은 불필요하다" | 사용자가 명시적으로 제외하지 않은 도메인은 필수 |
+| ❌ "Mock/인프라 설정이 복잡하다" | 복잡성은 DEFERRED 사유이지 NOT_APPLICABLE 사유가 아님 |
+| ❌ "TC 수준의 meaningful test가 없다" | TC 품질 규칙은 개별 TC에 적용. 도메인 전체 스킵 근거 아님 |
+| ❌ "기존 E2E가 이미 커버한다" | Layer Ownership 위반 — 각 도메인은 고유 검증 의도가 다름 |
+| ❌ "사용자가 불필요한 테스트 금지라고 했다" | **불필요 = 무의미한 개별 TC. 도메인 스킵이 아님** |
+| ❌ "프레임워크/인프라 코드는 테스트 불필요" | 인프라 위에 놓인 비즈니스 로직은 테스트 대상 |
+
+> **핵심 구분**: "불필요한 테스트 작성 금지" = 도메인 내 무의미 TC 배제. ≠ 도메인 자체를 배제.
+> 에이전트는 **도메인 범위 결정**과 **TC 품질 결정**을 반드시 분리해야 한다.
+
+#### 사용자 확인
+
+게이트 표를 제시한 후 사용자에게 확인을 구한다:
+- "위 도메인 범위로 진행할까요? 제외하거나 추가할 도메인이 있으면 알려주세요."
+- 사용자가 승인하면 Phase B 진행
+- 사용자가 도메인을 제거하면 해당 도메인만 Selective Execution 적용
 
 ## Phase B: Test Document Generation (Parallel)
 
@@ -589,7 +671,9 @@ When existing tests are detected in Phase A, switch to Gap Iteration Mode instea
 ```
 Step 0: False Positive Audit (기존 통과 테스트 중 허위 양성 탐지)
     ↓
-Step 1: Investigate gaps per domain
+Step 0.5: Domain Coverage Gate (Phase A-5 — 10개 도메인 판정 → 사용자 확인)
+    ↓
+Step 1: Investigate gaps per PROCEED 도메인
     ↓
 Step 2: Document gap plan (scenarios + cases)
     ↓
@@ -773,7 +857,22 @@ expect(percentile(times, 95)).toBeLessThan(threshold);
 
 ## Selective Execution
 
-If the user requests specific domains only (e.g., "unit이랑 security만"), execute only those domains. Skip unrequested domains and adjust agent grouping accordingly.
+### 명시적 도메인 지정 시
+사용자가 특정 도메인만 요청하면 (e.g., "unit이랑 security만") 해당 도메인만 실행한다. 나머지는 스킵.
+
+### 풀테스트 / 전체 테스트 요청 시 (기본값)
+"풀테스트", "전체 테스트", "모든 테스트", "full test", "generate tests" 등 **도메인을 한정하지 않는 요청**은 **10개 도메인 전체 평가가 기본값**이다.
+
+- Phase A-5 Domain Coverage Gate를 **반드시** 실행
+- NOT_APPLICABLE / DEFERRED 판정은 A-5 규칙에 따름
+- **에이전트가 자의적으로 도메인을 축소하는 것은 금지** — 축소는 사용자만 할 수 있음
+
+### 도메인 축소 권한
+| 주체 | 축소 가능 여부 |
+|------|-------------|
+| 사용자가 명시적으로 제외 | ✅ 허용 |
+| 사용자 확인 후 에이전트가 DEFERRED 처리 | ✅ 허용 |
+| 에이전트가 단독으로 도메인 스킵 | ❌ **금지** |
 
 ## 10 Test Domains Reference
 
