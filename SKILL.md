@@ -1,6 +1,7 @@
 ---
 name: full-test-orchestrator
 description: "Human-level QA orchestrator that generates spec-based test suites across 10 domains, triages failures (implementation bug vs test error vs environment issue), fixes implementation code when tests correctly catch bugs, and iterates until the system is correct. Use when implementation is complete, after coding, before PR, or when these keywords appear: EN: \"write tests\", \"generate tests\", \"create test suite\", \"test coverage\", \"run all tests\", \"coverage report\", \"QA\", \"test generation\", \"full test\", \"test code\" | KO: \"테스트 작성\", \"테스트 생성\", \"테스트 만들어\", \"테스트 코드\", \"커버리지\", \"검증\", \"모든 테스트\", \"테스트 실행\", \"테스트 시나리오\", \"테스트 케이스\", \"QA 검증\", \"품질 검증\""
+version: 1.0.0
 ---
 
 # Full Test Orchestrator (Human-Level QA)
@@ -35,28 +36,9 @@ Every test must have a clear **purpose** (why it exists) and **goal** (what it p
 
 ### False Positive Detection (MANDATORY — 허위 양성 탐지)
 
-기존 테스트가 "통과하지만 실제로 아무것도 검증하지 않는" 패턴을 적극 탐지합니다. **통과하는 테스트도 의심하라.**
+기존 테스트가 "통과하지만 실제로 아무것도 검증하지 않는" 패턴을 적극 탐지합니다. **통과하는 테스트도 의심하라.** 통과하는 허위 양성은 **테스트가 없는 것보다 위험** — 거짓 안전감을 준다.
 
-| 허위 양성 패턴 | 예시 | 왜 위험한가 |
-|---------------|------|-----------|
-| Null 통과 검증 | `expect(result !== undefined).toBe(true)` | `null !== undefined`은 `true` — 폴백 실패해도 통과 |
-| 느슨한 상태 코드 허용 | `expect([200, 201, 403, 429]).toContain(status)` | Rate Limit 비활성화돼도 통과 |
-| .catch 후 null 허용 | `.catch(() => null)` → `if (result) { ... } else { expect(true).toBe(true) }` | 에러 발생 시 검증 자체를 건너뜀 |
-| 조건부 검증 skip | `if (status === 429) { expect(...) } else { console.log("[SKIP]") }` | 핵심 동작 미작동해도 통과 |
-| E2E graceful skip | `isVisible().catch(() => false)` → `console.log("[SKIP]")` | UI 회귀 발생해도 감지 불가 |
-| 빈 테스트 본문 | `test("TC-001: 기능", async () => { /* TODO */ })` | 테스트 존재한다는 착각만 줌 |
-
-**탐지 방법:**
-1. `grep -r "expect(true)" tests/` — 무의미한 assertion
-2. `grep -r "\[SKIP\]" tests/` — graceful skip 패턴
-3. `grep -r "!== undefined" tests/` — null 통과 검증
-4. `grep -r "expect(\[" tests/` — 느슨한 status 허용
-5. `grep -rn "\.catch.*=> null" tests/` — 에러 삼킴 패턴
-
-**발견 시 조치:**
-- CRITICAL (핵심 기능 검증 skip) → `test.fail(true, "설명")` + `fixme` annotation으로 전환
-- MEDIUM (부가 기능 skip) → `test.info().annotations.push({ type: "fixme" })` 추가
-- 허위 양성은 **테스트가 없는 것보다 위험** — 거짓 안전감을 줌
+기존 테스트를 다룰 때(Phase A-4, Gap Iteration Step 0)는 **[references/false-positive-audit.md](references/false-positive-audit.md)를 Read**하여 허위 양성 패턴 표·탐지 grep·발견 시 조치를 적용한다.
 
 ### Anti-Bias Rules (MANDATORY)
 
@@ -157,198 +139,19 @@ Output: Share analysis summary (Spec + Code + Dedup) with all agents in Phase B/
 
 > **중요**: 파일명 유사성, describe 블록 이름, 또는 주석만으로 중복을 판정하면 **60% 이상 false positive**가 발생한다. 실제 사례에서 검증됨.
 
-중복을 **주장**하려면 아래 **3-Gate Verification**을 **반드시** 통과해야 한다. 3개 게이트 중 **1개라도 실패하면 중복이 아니다.**
-
-#### Gate 1: Same Target Verification (동일 대상)
-두 파일이 같은 함수/엔드포인트/플로우를 검증하는가?
-
-**필수 증거** (grep 결과 직접 인용):
-```bash
-# 두 파일에서 실제로 import하는 함수가 같은가?
-grep -n "^import" <fileA>
-grep -n "^import" <fileB>
-
-# 두 파일에서 호출하는 메서드가 같은가?
-grep -n "\.methodName\|functionName(" <fileA>
-grep -n "\.methodName\|functionName(" <fileB>
-```
-
-- 실패 예시: A는 `validateAliasBasic`, B는 `validateAliasData` → 다른 함수 → **Gate 1 실패, 중복 아님**
-
-#### Gate 2: Same Intent Verification (동일 의미)
-두 파일의 검증 **의도**가 같은가? (정상 비즈니스 vs 보안 공격 vs 성능은 모두 다른 의도)
-
-**필수 증거**: 두 파일의 실제 test 본문을 읽고 인용한다. 이름만으로 판단 금지.
-
-- 실패 예시: 둘 다 `/api/auth/login` 401을 검증하지만, A는 "잘못된 비밀번호"(비즈니스), B는 "SQL Injection 페이로드"(보안 공격) → **Gate 2 실패, 중복 아님**
-
-#### Gate 3: Same Layer Verification (동일 계층)
-Layer Ownership 기준으로 두 파일이 같은 owner인가?
-
-**필수 증거**: 각 파일이 HTTP 요청을 사용하는지, 서비스 함수를 직접 호출하는지, DB를 mock하는지 real로 쓰는지 확인.
-
-- 실패 예시: A는 `request.post("/api/links")` (HTTP), B는 `createLink(...)` 직접 호출 + real DB (서비스 계층) → 다른 계층 → **Gate 3 실패, 중복 아님**
-
-#### 3-Gate 보고 형식 (각 중복 주장마다 반드시 포함)
-
-```
-─── 중복 후보 ──────────────────────────────────
-대상:           [함수명 또는 엔드포인트]
-파일 A:         [경로:라인]
-파일 B:         [경로:라인]
-
-Gate 1 (Same Target):
-  A import: [grep 결과 인용]
-  B import: [grep 결과 인용]
-  결과:     [PASS / FAIL]
-
-Gate 2 (Same Intent):
-  A describe/test: [실제 인용]
-  B describe/test: [실제 인용]
-  결과:             [PASS / FAIL]
-
-Gate 3 (Same Layer):
-  A uses: [HTTP / service call / mock / real DB]
-  B uses: [HTTP / service call / mock / real DB]
-  결과:   [PASS / FAIL]
-
-판정:      [3-Gate 모두 PASS → 중복 / 1개라도 FAIL → 중복 아님]
-권장 조치: [구체적 파일/라인]
-─────────────────────────────────────────────────
-```
-
-#### 금지된 판정 근거
-
-다음 근거로 중복을 주장하면 **자동 기각**:
-
-- ❌ "파일명이 비슷하다"
-- ❌ "같은 디렉토리에 있다"
-- ❌ "둘 다 401/403을 검증한다" (의도 미검증)
-- ❌ "describe 이름이 같다" (본문 미확인)
-- ❌ "4개 파일에 분산되어 있다" (각 파일별 grep 증거 미첨부)
-- ❌ "Layer Ownership 위반으로 보인다" (실제 코드 미확인)
-
-#### Sample-Check Recommendation
-
-중복 보고서가 10건 이상일 때, **HIGH 항목의 최소 30%를 사용자가 샘플 검증** 후에만 권장 조치를 수행한다. 자동 적용 금지.
+중복을 **주장**하려면 **3-Gate Verification**(Same Target / Same Intent / Same Layer)을 **반드시** 통과해야 한다. 3개 게이트 중 **1개라도 실패하면 중복이 아니다.** 중복을 주장하기 전에 **[references/dedup-verification.md](references/dedup-verification.md)를 Read**하여 각 Gate의 필수 증거·보고 형식·금지된 판정 근거·Sample-Check 규칙을 적용한다.
 
 ### A-4: False Positive Audit (MANDATORY — 기존 테스트가 있을 때)
 
-기존 테스트가 존재하면, 새 테스트 생성 전에 **통과하는 기존 테스트 중 허위 양성**을 먼저 탐지합니다.
-
-**실행 순서:**
-1. 아래 grep 명령을 순차 실행하여 의심 파일 수집
-2. 각 파일의 해당 줄 컨텍스트를 읽고 실제 허위 양성인지 판별
-3. 위험도 분류 (CRITICAL / HIGH / MEDIUM)
-4. CRITICAL은 Phase C에서 수정 코드 포함, 나머지는 감사 보고서에 기록
-
-```bash
-# 1. 무의미한 assertion
-grep -rn "expect(true)" tests/
-
-# 2. graceful skip 패턴
-grep -rn "\[SKIP\]" tests/
-
-# 3. null 통과 검증
-grep -rn "!== undefined" tests/
-
-# 4. 느슨한 상태 코드 허용
-grep -rn "expect(\[" tests/ | grep -i "contain"
-
-# 5. 에러 삼킴 후 null 허용
-grep -rn "\.catch.*=> null" tests/
-
-# 6. 빈 테스트 본문
-grep -rn "// \[.*REQUIRED\]\|// TODO\|// PLACEHOLDER" tests/
-```
-
-**판별 기준:**
-- `expect(result !== undefined).toBe(true)` → **허위 양성** (null도 통과)
-- `expect([200, 201, 403, 429]).toContain(status)` → **허위 양성** (핵심 검증 회피)
-- `isVisible().catch(() => false)` → if/else → `console.log("[SKIP]")` → **허위 양성** (UI 회귀 미감지)
-- `test("TC-001", async () => { /* [REQUIRED] */ })` → **빈 테스트** (검증 없음)
-
-**결과물:** `tests/doc/FALSE_POSITIVE_AUDIT.md` — 파일별 허위 양성 목록 + 위험도 + 권장 수정
+기존 테스트가 존재하면, 새 테스트 생성 전에 **통과하는 기존 테스트 중 허위 양성**을 먼저 탐지합니다. 이 단계에서 **[references/false-positive-audit.md](references/false-positive-audit.md)를 Read**하여 실행 순서(grep 수집 → 컨텍스트 확인 → CRITICAL/HIGH/MEDIUM 분류)와 판별 기준을 적용한다. 결과물은 `tests/doc/FALSE_POSITIVE_AUDIT.md` — 파일별 허위 양성 목록 + 위험도 + 권장 수정.
 
 ### A-5: Domain Coverage Gate (MANDATORY — 도메인 커버리지 게이트)
 
 > **이 게이트를 통과하지 않으면 Phase B로 진행할 수 없다.**
 
-Phase A 분석이 끝나면, **10개 도메인 전체**에 대해 아래 표를 **빠짐없이** 작성하여 사용자에게 제시한다.
-"풀테스트" 요청 시 이 게이트는 건너뛸 수 없다.
+Phase A 분석이 끝나면, **10개 도메인 전체**에 대해 Verdict 표(PROCEED/NOT_APPLICABLE/DEFERRED)를 **빠짐없이** 작성하여 사용자에게 제시하고 확인을 받는다. "풀테스트" 요청 시 이 게이트는 건너뛸 수 없다. **에이전트가 자의적으로 도메인을 축소하는 것은 금지** — 축소는 사용자만 할 수 있다.
 
-#### 출력 형식 (10행 모두 필수)
-
-```
-═══════════════════════════════════════════════════
- Domain Coverage Gate — Phase A-5
-═══════════════════════════════════════════════════
- #   Domain          Verdict          Reason / Scope
-─────────────────────────────────────────────────── 
- 1   Unit            PROCEED(N)       N개 함수/모듈 대상
- 2   API             PROCEED(N)       N개 엔드포인트 대상
- 3   Integration     PROCEED(N)       N개 서비스 연동 대상
- 4   E2E             PROCEED(N)       N개 사용자 여정 대상
- 5   Security        PROCEED(N)       N개 OWASP 항목 대상
- 6   Accessibility   NOT_APPLICABLE   사유: [구체적 이유]
- 7   Performance     PROCEED(N)       N개 함수/페이지 대상
- 8   Load/Stress     DEFERRED         사유: [구체적 이유]
- 9   Smoke           PROCEED(N)       N개 크리티컬 경로 대상
- 10  Chaos           DEFERRED         사유: [구체적 이유]
-═══════════════════════════════════════════════════
- PROCEED: N개 도메인 / DEFERRED: N개 / NOT_APPLICABLE: N개
-═══════════════════════════════════════════════════
-```
-
-#### Verdict 규칙
-
-| Verdict | 의미 | 조건 |
-|---------|------|------|
-| **PROCEED(N)** | 이 도메인에서 N개 TC를 생성한다 | 테스트 가능한 대상이 1개 이상 존재 |
-| **NOT_APPLICABLE** | 이 프로젝트에 해당 도메인이 적용되지 않는다 | 아래 허용 사유 목록에 해당하는 경우만 |
-| **DEFERRED** | 적용 가능하지만 현재 환경에서 실행 불가 | 인프라/의존성 부재 (DB, Redis, 브라우저 등) |
-
-#### NOT_APPLICABLE 허용 사유 (이 목록에 없는 사유는 인정하지 않음)
-
-| 도메인 | 유일하게 허용되는 NOT_APPLICABLE 사유 |
-|--------|-------------------------------------|
-| Unit | 프로젝트에 순수 함수/모듈이 단 하나도 없음 (극히 드묾) |
-| API | 프로젝트에 API 엔드포인트가 없음 (프론트엔드 전용 등) |
-| Integration | 서비스 간 연동이 없는 단일 모듈 프로젝트 |
-| E2E | UI가 없는 순수 백엔드/라이브러리 프로젝트 |
-| Security | API/입력 처리가 없는 순수 유틸리티 라이브러리 |
-| Accessibility | 브라우저 UI가 없는 프로젝트 |
-| Performance | 성능이 관심사가 아닌 내부 도구 (사용자 지정 시만) |
-| Load/Stress | 동시성/부하가 관심사가 아닌 프로젝트 (사용자 지정 시만) |
-| Smoke | 배포 파이프라인이 없는 로컬 전용 프로젝트 |
-| Chaos | 외부 서비스 의존이 없는 프로젝트 |
-
-#### DEFERRED 처리
-
-DEFERRED 도메인은 **Phase H 보고서에 "미실행 도메인" 섹션으로 기록**하고, 실행에 필요한 환경 설정을 안내한다.
-
-#### 금지 규칙 (Anti-Domain-Skip)
-
-다음 근거로 도메인을 NOT_APPLICABLE 처리하면 **자동 기각**:
-
-| 금지 사유 | 왜 금지인가 |
-|----------|-----------|
-| ❌ "이 도메인은 불필요하다" | 사용자가 명시적으로 제외하지 않은 도메인은 필수 |
-| ❌ "Mock/인프라 설정이 복잡하다" | 복잡성은 DEFERRED 사유이지 NOT_APPLICABLE 사유가 아님 |
-| ❌ "TC 수준의 meaningful test가 없다" | TC 품질 규칙은 개별 TC에 적용. 도메인 전체 스킵 근거 아님 |
-| ❌ "기존 E2E가 이미 커버한다" | Layer Ownership 위반 — 각 도메인은 고유 검증 의도가 다름 |
-| ❌ "사용자가 불필요한 테스트 금지라고 했다" | **불필요 = 무의미한 개별 TC. 도메인 스킵이 아님** |
-| ❌ "프레임워크/인프라 코드는 테스트 불필요" | 인프라 위에 놓인 비즈니스 로직은 테스트 대상 |
-
-> **핵심 구분**: "불필요한 테스트 작성 금지" = 도메인 내 무의미 TC 배제. ≠ 도메인 자체를 배제.
-> 에이전트는 **도메인 범위 결정**과 **TC 품질 결정**을 반드시 분리해야 한다.
-
-#### 사용자 확인
-
-게이트 표를 제시한 후 사용자에게 확인을 구한다:
-- "위 도메인 범위로 진행할까요? 제외하거나 추가할 도메인이 있으면 알려주세요."
-- 사용자가 승인하면 Phase B 진행
-- 사용자가 도메인을 제거하면 해당 도메인만 Selective Execution 적용
+이 게이트 실행 시 **[references/domain-coverage-gate.md](references/domain-coverage-gate.md)를 Read**하여 10행 출력 형식·Verdict 규칙·NOT_APPLICABLE 허용 사유·Anti-Domain-Skip 금지 규칙·사용자 확인 절차를 그대로 적용한다.
 
 ## Phase B: Test Document Generation (Parallel)
 
@@ -575,66 +378,11 @@ Display three reports sequentially:
 
 ### Triage Summary Report Format
 
-```
-═══════════════════════════════════════════════════
- Triage Summary Report
-═══════════════════════════════════════════════════
- Iterations: N / 5 max
- Total Failures Triaged: N
-
- ─── By Classification ───────────────────────────
- IMPL_BUG:        N fixed  (implementation code changed)
- TEST_ERROR:      N fixed  (test code changed, justified)
- SPEC_AMBIGUOUS:  N resolved (user clarified)
- ENV_ISSUE:       N reported (environment setup needed)
- FLAKY:           N fixed  (determinism improved)
- NOT_IMPLEMENTED: N reported (features missing)
-
- ─── Implementation Fixes ────────────────────────
- File                        Change Summary
- src/lib/services/foo.ts     Fixed return type for edge case
- src/app/api/bar/route.ts    Added missing 404 handling
- ...
-
- ─── Test Fixes (with justification) ─────────────
- File                        Justification
- tests/unit/foo.test.ts      Spec says 201, test had 200
- tests/api/bar.test.ts       Mock setup used wrong schema
- ...
-
- ─── Unresolved ──────────────────────────────────
- [List any failures that remain after max iterations]
-
- ─── Regression Events ───────────────────────────
- [List any fixes that were reverted due to regression]
-═══════════════════════════════════════════════════
-```
+세 보고서의 상세 템플릿(Preparation / Execution / Triage Summary)은 [references/report-format.md](references/report-format.md)에 있다. Phase H 진입 시 이 파일을 Read하여 Triage Summary Report(및 축약 변형)를 렌더링한다. Triage Summary는 반드시 **구현 수정과 테스트 수정을 구분**하고, **모든 테스트 수정에 근거(justification)를 기록**한다.
 
 ## Layer Ownership Rules (Dedup)
 
-Each test item has exactly ONE owning layer. Never test the same item in multiple layers.
-
-| Verification Item | Owner Layer | Forbidden In |
-|-------------------|-------------|--------------|
-| Pure function logic (input→output) | **unit** | api, integration |
-| Zod schema validation | **unit** | api |
-| Constants/config values | **unit** | any other |
-| Component rendering | **unit** | e2e |
-| API endpoint success (200/201) | **api** | integration |
-| API input validation (400) | **api** | security |
-| Auth check (401) | **api** (per-feature file) | bulk security file |
-| Admin check (403) | **api** (per-feature file) | bulk security file |
-| Service-to-service with real DB | **integration** | unit (with full mock) |
-| Browser-based user flow | **e2e** | api (using request only) |
-| OWASP attack vectors | **security** | api |
-| WCAG accessibility | **accessibility** | e2e |
-| Response time / load | **performance** | any other |
-
-**File rules:**
-- 1 endpoint (or tightly related group) = 1 file
-- No aggregation files (e.g., `management.test.ts` bundling separate endpoints)
-- No temp/verify files — add regression TC to the canonical file with bug reference
-- E2E files MUST use browser (`page`) — `request`-only tests go to api layer
+각 테스트 항목은 정확히 하나의 소유 계층(owning layer)을 가진다. 같은 항목을 여러 계층에서 테스트하지 않는다. 계층별 소유권 표(unit/api/integration/e2e/security/accessibility/performance)와 파일 규칙(1 엔드포인트=1 파일, 집계 파일 금지, temp/verify 파일 금지, E2E는 반드시 브라우저 `page` 사용)은 Phase A-3 Dedup Check와 Phase B/C 배치 시 **[references/layer-ownership.md](references/layer-ownership.md)를 Read**하여 적용한다.
 
 ## Quality Criteria (98%+ coverage target)
 
@@ -664,196 +412,15 @@ Key rules:
 
 ## Gap Iteration Mode (Existing Tests)
 
-When existing tests are detected in Phase A, switch to Gap Iteration Mode instead of generating from scratch.
+Phase A에서 기존 테스트가 감지되면, 처음부터 생성하는 대신 **Gap Iteration Mode**로 전환한다. 워크플로우는 Step 0 False Positive Audit → Step 0.5 Domain Coverage Gate → Step 1 Gap Investigation → Step 2 Gap Plan → Step 3 Gap Code(+허위 양성 수정) → Step 4 Run all → Step 5-6 Triage/Remediate(Phase E·F 규칙 적용) → Step 7 Re-verify로, gap이 없고 전부 통과할 때까지 **최대 5회** 반복한다.
 
-### Gap Iteration Workflow
-
-```
-Step 0: False Positive Audit (기존 통과 테스트 중 허위 양성 탐지)
-    ↓
-Step 0.5: Domain Coverage Gate (Phase A-5 — 10개 도메인 판정 → 사용자 확인)
-    ↓
-Step 1: Investigate gaps per PROCEED 도메인
-    ↓
-Step 2: Document gap plan (scenarios + cases)
-    ↓
-Step 3: Generate test code for gaps only + 허위 양성 수정
-    ↓
-Step 4: Run all tests (existing + new)
-    ↓
-Step 5: Triage any failures (Phase E rules apply!)
-    ↓
-Step 6: Remediate (Phase F rules apply!)
-    ↓
-Step 7: Re-verify and re-investigate gaps
-    ↓
-  ┌─ Gaps found → repeat from Step 2
-  └─ No gaps + all pass → complete with reports
-```
-
-### Step 0: False Positive Audit
-
-**기존 테스트가 존재할 때 가장 먼저 실행합니다.** Gap을 찾기 전에, 통과하는 테스트가 실제로 검증을 하고 있는지 확인합니다.
-
-Phase A-4의 grep 명령을 실행하여 허위 양성을 수집하고, Step 3에서 gap 코드와 함께 수정합니다.
-
-허위 양성을 먼저 수정하지 않으면:
-- Gap 분석 시 "이미 테스트됨"으로 잘못 판별 → 실제 gap을 놓침
-- 허위 양성 TC가 커버리지에 포함 → 실제 커버리지보다 높게 측정
-
-### Step 1: Gap Investigation
-
-For each of the 10 domains, analyze:
-- **Source coverage**: Which functions/endpoints/flows lack test coverage?
-- **Domain coverage**: Which domains have zero tests? (e.g., no security tests at all)
-- **Quality gaps**: Existing tests missing boundary values, error paths, or edge cases?
-- **Dedup check**: Ensure investigation respects layer ownership rules
-
-Output: Gap analysis summary per domain showing what is covered vs missing.
-
-### Step 2: Gap Plan Documentation
-
-Write gap-specific documents to `tests/doc/`:
-- `tests/doc/scenarios/{domain}-gap-scenarios.md` — scenarios for missing coverage
-- `tests/doc/testcases/{domain}-gap-testcases.md` — test cases for each gap scenario
-
-Each document clearly references:
-- What existing tests already cover (to avoid duplication)
-- What new tests will be added and why
-
-### Step 3: Gap Test Code Generation
-
-Generate test code ONLY for identified gaps:
-- Add to existing test files where the same endpoint/module is partially tested
-- Create new files only for entirely untested areas
-- Follow all Dedup and Layer Ownership rules
-
-### Step 4: Run All Tests
-
-Execute both existing and newly generated tests. Collect results.
-
-### Step 5-6: Triage and Remediate
-
-**Apply Phase E (Triage) and Phase F (Remediation) rules to ALL failures.**
-
-This is the critical difference from the old workflow:
-- Old: failures → adjust tests → re-run
-- New: failures → classify → fix the RIGHT code → re-run
-
-### Step 7: Re-investigate and Repeat
-
-After execution, re-analyze for remaining gaps:
-- New tests may reveal additional untested paths
-- Coverage report may show branches still uncovered
-- Continue iteration until:
-  - Coverage target (98%+ line, 90%+ branch) is met, OR
-  - No actionable gaps remain across all 10 domains
-
-**Maximum 5 iterations** to prevent infinite loops. Report progress per iteration.
-
-### Gap Iteration Report
-
-After each iteration, display:
-
-```
-═══════════════════════════════════════════════════
- Gap Iteration Report (#N)
-═══════════════════════════════════════════════════
- Domain          Existing  New  Total  Gaps Remaining
-───────────────────────────────────────────────────
- Unit                  -    -      -              -
- API                   -    -      -              -
- ...
-───────────────────────────────────────────────────
- Coverage: --% → --%  (delta: +--%)
-
- Triage This Iteration:
-   IMPL_BUG: N fixed | TEST_ERROR: N fixed | ENV_ISSUE: N
-
- Status: [Continue / Complete]
-═══════════════════════════════════════════════════
-```
+이 모드 진입 시 **[references/gap-iteration.md](references/gap-iteration.md)를 Read**하여 각 Step 상세와 Gap Iteration Report 형식을 적용한다.
 
 ## Production Readiness Audit (프로덕션 출시 관점 감사)
 
-테스트 수치(TC 수, 파일 수)가 아니라 **"이 테스트를 모두 통과하면 프로덕션에서 장애 없이 운영될 수 있는가?"**를 기준으로 평가합니다.
+테스트 수치(TC 수, 파일 수)가 아니라 **"이 테스트를 모두 통과하면 프로덕션에서 장애 없이 운영될 수 있는가?"**를 기준으로 평가한다. Phase A에서 기존 테스트가 있을 때, Gap Investigation 전에 이 감사를 먼저 수행한다.
 
-### 필수 검증 체크리스트
-
-Phase A에서 기존 테스트가 있을 때, Gap Investigation 전에 이 체크리스트를 먼저 수행합니다.
-
-#### 1. 장애 복원력 (Resilience)
-
-| 검증 항목 | 질문 | 테스트 위치 |
-|----------|------|-----------|
-| 캐시 장애 폴백 | Redis 다운 시 DB 직접 조회로 핵심 기능이 동작하는가? | chaos |
-| 외부 서비스 장애 | API 제공자 timeout/500 시 graceful degradation 하는가? | chaos |
-| 메모리 누수 방지 | 재시도 큐, 버퍼 등에 크기 상한(cap)이 있는가? | unit |
-| 동시성 안전 | 같은 리소스 동시 생성 시 unique constraint 처리가 되는가? | unit, integration |
-| 트랜잭션 부분 실패 | 다단계 트랜잭션에서 중간 실패 시 데이터 일관성이 보장되는가? | integration |
-| 서버 재시작 시 데이터 유실 | 인메모리 버퍼 flush 전 종료 시 허용 정책이 있는가? | 문서화 |
-
-#### 2. 보안 실질성 (Security Substance)
-
-| 검증 항목 | 질문 | 테스트 위치 |
-|----------|------|-----------|
-| Rate Limit 임계값 | 실제로 limit을 초과하면 429가 반환되는가? (느슨한 검증 금지) | unit |
-| JWT 실제 서명 | mock이 아닌 실제 서명/검증이 동작하는가? | integration |
-| OAuth 콜백 처리 | 외부 제공자 mock 없이 빈 테스트로 남겨져 있지 않은가? | e2e |
-| 구독 플랜 강제 | API 레벨에서 플랜 제한이 실제 적용되는가? (UI 안내만 검증은 불충분) | unit, api |
-
-#### 3. 사용자 여정 완결성 (User Journey Completeness)
-
-| 검증 항목 | 질문 | 테스트 위치 |
-|----------|------|-----------|
-| 비회원 전체 여정 | 홈→입력→생성→복사→리다이렉트가 하나의 연속 시나리오로 검증되는가? | e2e |
-| 회원 전체 여정 | 로그인→생성→분석확인→수정→삭제가 연속으로 검증되는가? | e2e |
-| 모바일 전용 | 모바일 뷰포트에서 핵심 기능이 별도 spec으로 검증되는가? | e2e |
-| i18n 실질성 | 언어 전환 후 실제 해당 언어 텍스트가 표시되는가? (번역 키 누락 감지) | e2e |
-| 에러 상태 UX | 404, 만료, 서버 에러 시 사용자에게 적절한 안내가 표시되는가? | e2e |
-
-#### 4. 정합성 (Consistency)
-
-| 검증 항목 | 질문 | 테스트 위치 |
-|----------|------|-----------|
-| 캐시-DB 정합성 | 삭제 후 캐시 무효화 전 stale 데이터로 리다이렉트되지 않는가? | unit |
-| 외부 서비스-DB 정합성 | 외부 API 실패 시 DB에 고아 레코드가 남지 않는가? | unit |
-| 에러 응답 일관성 | 모든 API 에러 응답이 동일한 형식인가? (내부 정보 미노출) | api |
-
-### 운영 안정성 점검 (코드 외)
-
-테스트 통과만으로는 프로덕션 안정성을 보장할 수 없습니다. 다음 항목도 확인합니다.
-
-| 항목 | 확인 내용 | 산출물 |
-|------|----------|--------|
-| 헬스체크 API | DB/Redis/어플리케이션 메트릭이 단일 엔드포인트에서 확인 가능한가? | `/api/health` 강화 |
-| Circuit Breaker | 외부 서비스 장애 시 자동 차단 + 복구 로직이 있는가? | `circuit-breaker.ts` |
-| 롤백 플레이북 | 배포 후 장애 시 5분 이내 복구 절차가 문서화되어 있는가? | `ROLLBACK_PLAYBOOK.md` |
-| DB 마이그레이션 롤백 | 모든 마이그레이션에 rollback.sql이 존재하는가? | `prisma/migrations/*/rollback.sql` |
-| Graceful Degradation 정책 | 부가 서비스 장애 시 핵심 기능 계속 동작하는 정책이 명시되어 있는가? | `GRACEFUL_DEGRADATION_POLICY.md` |
-
-### 성능 벤치마크 (Performance Baseline)
-
-07-performance 도메인에 반드시 포함해야 할 벤치마크:
-
-```typescript
-// 핵심 함수 p50/p95/p99 측정 패턴
-function percentile(values: number[], p: number): number {
-  const sorted = [...values].sort((a, b) => a - b);
-  return sorted[Math.ceil(sorted.length * (p / 100)) - 1];
-}
-
-// 100회 호출 → p50, p95, p99 계산 → 임계값 검증
-const times = await Promise.all(Array(100).fill(0).map(() => measureTime(fn)));
-expect(percentile(times, 95)).toBeLessThan(threshold);
-```
-
-| 대상 | p95 임계값 | 비고 |
-|------|----------|------|
-| 핵심 비즈니스 함수 (mock 환경) | < 50ms | resolveLink, createLink 등 |
-| 순수 함수 | < 1ms | validateLinkStatus, checkPasswordProtection |
-| 동시 100건 호출 | 전체 < 500ms | Promise.all 시뮬레이션 |
-| 캐시 히트 vs 미스 | 히트 p95 < 미스 p95 | 캐시 효과 검증 |
+이 단계에서 **[references/production-readiness.md](references/production-readiness.md)를 Read**하여 필수 검증 체크리스트(장애 복원력·보안 실질성·사용자 여정 완결성·정합성), 운영 안정성 점검(코드 외), 성능 벤치마크(p50/p95/p99) 기준을 적용한다.
 
 ## Selective Execution
 

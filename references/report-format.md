@@ -153,6 +153,45 @@ Display after all triage-fix-verify iterations complete.
 ═══════════════════════════════════════════════════
 ```
 
+### Triage Summary Report — Compact Variant
+
+Phase H에서 쓸 수 있는 축약 템플릿. 위 Report 3의 축약형이다.
+
+```
+═══════════════════════════════════════════════════
+ Triage Summary Report
+═══════════════════════════════════════════════════
+ Iterations: N / 5 max
+ Total Failures Triaged: N
+
+ ─── By Classification ───────────────────────────
+ IMPL_BUG:        N fixed  (implementation code changed)
+ TEST_ERROR:      N fixed  (test code changed, justified)
+ SPEC_AMBIGUOUS:  N resolved (user clarified)
+ ENV_ISSUE:       N reported (environment setup needed)
+ FLAKY:           N fixed  (determinism improved)
+ NOT_IMPLEMENTED: N reported (features missing)
+
+ ─── Implementation Fixes ────────────────────────
+ File                        Change Summary
+ src/lib/services/foo.ts     Fixed return type for edge case
+ src/app/api/bar/route.ts    Added missing 404 handling
+ ...
+
+ ─── Test Fixes (with justification) ─────────────
+ File                        Justification
+ tests/unit/foo.test.ts      Spec says 201, test had 200
+ tests/api/bar.test.ts       Mock setup used wrong schema
+ ...
+
+ ─── Unresolved ──────────────────────────────────
+ [List any failures that remain after max iterations]
+
+ ─── Regression Events ───────────────────────────
+ [List any fixes that were reverted due to regression]
+═══════════════════════════════════════════════════
+```
+
 ## Report Rules
 
 1. Replace `-` with actual values
