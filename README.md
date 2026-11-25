@@ -154,16 +154,16 @@ Placed according to your project's conventions. Default structure:
 
 ```
 tests/
-├── unit/
-├── api/
-├── integration/
-├── e2e/
-├── security/
-├── a11y/
-├── perf/
-├── load/
-├── smoke/
-└── chaos/
+├── 01-unit/
+├── 02-integration/
+├── 03-api/
+├── 04-e2e/
+├── 05-security/
+├── 06-accessibility/
+├── 07-performance/
+├── 08-load-stress/
+├── 09-chaos/
+└── 10-smoke/
 ```
 
 ## Reports

@@ -58,9 +58,9 @@ Agents write to non-overlapping paths — no merge conflicts:
 
 | Agent | Document Path | Code Path |
 |-------|--------------|-----------|
-| 1 | `tests/doc/*/unit-*`, `api-*`, `smoke-*` | `tests/unit/`, `tests/api/`, `tests/smoke/` |
-| 2 | `tests/doc/*/integration-*`, `e2e-*` | `tests/integration/`, `tests/e2e/` |
-| 3 | `tests/doc/*/security-*`, `accessibility-*`, `performance-*`, `load-stress-*`, `chaos-*` | `tests/security/`, `tests/a11y/`, `tests/perf/`, `tests/load/`, `tests/chaos/` |
+| 1 | `tests/doc/*/unit-*`, `api-*`, `smoke-*` | `tests/01-unit/`, `tests/03-api/`, `tests/10-smoke/` |
+| 2 | `tests/doc/*/integration-*`, `e2e-*` | `tests/02-integration/`, `tests/04-e2e/` |
+| 3 | `tests/doc/*/security-*`, `accessibility-*`, `performance-*`, `load-stress-*`, `chaos-*` | `tests/05-security/`, `tests/06-accessibility/`, `tests/07-performance/`, `tests/08-load-stress/`, `tests/09-chaos/` |
 
 ## Selective Execution
 

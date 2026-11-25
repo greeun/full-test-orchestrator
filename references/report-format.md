@@ -40,16 +40,16 @@ Documents:
  - tests/doc/testcases/*.md (N files)
 
 Test Code:
- - tests/unit/**/*.test.* (N files)
- - tests/api/**/*.test.* (N files)
- - tests/integration/**/*.test.* (N files)
- - tests/e2e/**/*.spec.* (N files)
- - tests/security/**/*.test.* (N files)
- - tests/a11y/**/*.test.* (N files)
- - tests/perf/**/*.test.* (N files)
- - tests/load/**/*.test.* (N files)
- - tests/smoke/**/*.test.* (N files)
- - tests/chaos/**/*.test.* (N files)
+ - tests/01-unit/**/*.test.* (N files)
+ - tests/02-integration/**/*.test.* (N files)
+ - tests/03-api/**/*.test.* (N files)
+ - tests/04-e2e/**/*.spec.* (N files)
+ - tests/05-security/**/*.test.* (N files)
+ - tests/06-accessibility/**/*.test.* (N files)
+ - tests/07-performance/**/*.test.* (N files)
+ - tests/08-load-stress/**/*.test.* (N files)
+ - tests/09-chaos/**/*.test.* (N files)
+ - tests/10-smoke/**/*.test.* (N files)
 
 Preparation Time: Xm Xs (parallel)
 ═══════════════════════════════════════════════════
@@ -134,8 +134,8 @@ Display after all triage-fix-verify iterations complete.
 
  ─── Test Fixes (with justification) ─────────────
  File                        Line  Justification
- tests/unit/foo.test.ts       28   Spec says 201 not 200 (see API doc)
- tests/api/bar.test.ts        55   Mock used wrong schema version
+ tests/01-unit/foo.test.ts       28   Spec says 201 not 200 (see API doc)
+ tests/03-api/bar.test.ts        55   Mock used wrong schema version
  ...
 
  ─── Unresolved ──────────────────────────────────
@@ -180,8 +180,8 @@ Phase H에서 쓸 수 있는 축약 템플릿. 위 Report 3의 축약형이다.
 
  ─── Test Fixes (with justification) ─────────────
  File                        Justification
- tests/unit/foo.test.ts      Spec says 201, test had 200
- tests/api/bar.test.ts       Mock setup used wrong schema
+ tests/01-unit/foo.test.ts      Spec says 201, test had 200
+ tests/03-api/bar.test.ts       Mock setup used wrong schema
  ...
 
  ─── Unresolved ──────────────────────────────────

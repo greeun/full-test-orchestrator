@@ -189,7 +189,7 @@ Generate executable test code using same 3-agent grouping.
 Rules:
 - Use the project's existing test framework and conventions
 - Follow the project's file structure for test placement
-- If no convention exists, propose structure and confirm with user
+- If no convention exists, propose the default numbered layout (`tests/01-unit` … `tests/10-smoke`, see the Dir column in "10 Test Domains Reference") and confirm with user
 - Each test must be independently runnable
 - Include setup/teardown where needed
 - Write assertion messages that clarify expected vs actual
@@ -445,15 +445,17 @@ Phase A에서 기존 테스트가 감지되면, 처음부터 생성하는 대신
 
 Quick reference — for detailed guidance see [references/test-domains.md](references/test-domains.md).
 
-| # | Domain | Focus |
-|---|--------|-------|
-| 1 | Unit | Function/module isolation |
-| 2 | API | Endpoint request/response |
-| 3 | Integration | Module interaction |
-| 4 | E2E | Full user flow |
-| 5 | Security | OWASP Top 10 vulnerabilities |
-| 6 | Accessibility | WCAG 2.1 AA compliance |
-| 7 | Performance | User experience speed (LCP, FID, TTFB) |
-| 8 | Load/Stress | System limits (concurrency, TPS, error rate) |
-| 9 | Smoke | Post-deploy critical path verification |
-| 10 | Chaos | Fault injection & resilience |
+| # | Domain | Focus | Default Dir |
+|---|--------|-------|-------------|
+| 1 | Unit | Function/module isolation | `tests/01-unit/` |
+| 2 | API | Endpoint request/response | `tests/03-api/` |
+| 3 | Integration | Module interaction | `tests/02-integration/` |
+| 4 | E2E | Full user flow | `tests/04-e2e/` |
+| 5 | Security | OWASP Top 10 vulnerabilities | `tests/05-security/` |
+| 6 | Accessibility | WCAG 2.1 AA compliance | `tests/06-accessibility/` |
+| 7 | Performance | User experience speed (LCP, FID, TTFB) | `tests/07-performance/` |
+| 8 | Load/Stress | System limits (concurrency, TPS, error rate) | `tests/08-load-stress/` |
+| 9 | Smoke | Post-deploy critical path verification | `tests/10-smoke/` |
+| 10 | Chaos | Fault injection & resilience | `tests/09-chaos/` |
+
+Directory numbers follow execution layering (unit → integration → api → e2e → …), not the domain # above. The project's existing layout always wins over this default.
